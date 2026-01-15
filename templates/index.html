@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌿 智能植物侦探 Pro</title>
+    <style>
+        :root {
+            --primary-color: #4CAF50;
+            --secondary-color: #2e7d32;
+            --bg-gradient: linear-gradient(135deg, #f5f7fa 0%, #d6e0f0 100%);
+            --shadow: 0 15px 35px rgba(0,0,0,0.1);
+        }
+
+        body {
+            font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: var(--bg-gradient);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+            overflow-x: hidden;
+        }
+
+        /* 主容器：支持布局平滑转换 */
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            width: 480px; 
+            min-height: 400px;
+            padding: 2.5rem;
+            border-radius: 35px;
+            box-shadow: var(--shadow);
+            transition: all 0.8s cubic-bezier(0.6, -0.28, 0.735, 0.045);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        /* 识别后的状态：变宽并转为左右布局 */
+        .container.is-analyzed {
+            width: 950px;
+            flex-direction: row;
+            align-items: flex-start;
+        }
+
+        /* 左面板：图片及上传 */
+        .left-panel {
+            flex: 1;
+            width: 100%;
+            transition: all 0.6s ease;
+            text-align: center;
+        }
+
+        /* 右面板：结果列表 */
+        .right-panel {
+            flex: 1.2;
+            width: 0;
+            opacity: 0;
+            display: none;
+            transition: all 0.5s ease;
+            padding: 10px 0 10px 30px;
+            border-left: 1px solid #eee;
+        }
+
+        .container.is-analyzed .right-panel {
+            width: 100%;
+            opacity: 1;
+            display: block;
+        }
+
+        h1 { color: #2d5a27; margin: 0 0 10px 0; font-size: 28px; }
+        p { color: #666; font-size: 15px; }
+
+        /* 上传区域 */
+        .upload-area {
+            border: 2px dashed #ccd1d9;
+            padding: 30px;
+            border-radius: 25px;
+            cursor: pointer;
+            background: #fff;
+            transition: 0.3s;
+            width: 100%;
+            box-sizing: border-box;
+            margin-top: 10px;
+        }
+
+        .upload-area:hover {
+            border-color: var(--primary-color);
+            background: #f9fbf9;
+            transform: translateY(-2px);
+        }
+
+        #preview {
+            max-width: 100%;
+            border-radius: 18px;
+            display: none;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+        }
+
+        /* 结果条目样式与动画 */
+        .result-item {
+            background: #fff;
+            border-radius: 15px;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid #f0f0f0;
+            cursor: pointer;
+            opacity: 0;
+            transform: translateX(30px);
+            transition: all 0.3s ease;
+        }
+
+        .result-item:hover {
+            transform: scale(1.03) translateX(5px) !important;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            border-color: var(--primary-color);
+            background: #f1f8e9;
+        }
+
+        .container.is-analyzed .result-item {
+            animation: slideIn 0.5s forwards;
+        }
+
+        @keyframes slideIn {
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .rank-1 {
+            border-left: 6px solid var(--primary-color);
+            background: #f1f8e9;
+        }
+
+        .confidence-tag {
+            background: var(--primary-color);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        /* 加载动画 */
+        .loader-line {
+            width: 100%;
+            height: 4px;
+            background: #eee;
+            overflow: hidden;
+            display: none;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .loader-line::after {
+            content: "";
+            display: block;
+            width: 40%;
+            height: 100%;
+            background: var(--primary-color);
+            animation: move 1.2s infinite linear;
+        }
+        @keyframes move {
+            from { margin-left: -40%; }
+            to { margin-left: 100%; }
+        }
+
+        /* 维基百科弹窗 */
+        #wikiModal {
+            display:none; 
+            position:fixed; 
+            top:0; left:0; 
+            width:100%; height:100%; 
+            background:rgba(0,0,0,0.7); 
+            z-index:2000; 
+            justify-content:center; 
+            align-items:center;
+            backdrop-filter: blur(5px);
+        }
+        .modal-content {
+            width: 85%; 
+            height: 85%; 
+            background: white; 
+            border-radius: 25px; 
+            position: relative; 
+            overflow: hidden;
+            animation: modalPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes modalPop {
+            from { transform: scale(0.8); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        .close-btn {
+            position: absolute; right: 20px; top: 15px;
+            width: 35px; height: 35px;
+            border-radius: 50%; border: none;
+            background: #eee; cursor: pointer;
+            font-size: 18px; font-weight: bold;
+            z-index: 2001;
+        }
+        .close-btn:hover { background: #ddd; }
+    </style>
+</head>
+<body>
+
+    <div class="container" id="mainContainer">
+        <div class="left-panel">
+            <h1 id="title">🌿 植物侦探 Pro</h1>
+            <p id="subtitle">上传植物照片，AI 瞬时为您解锁自然百科</p>
+            
+            <div class="upload-area" id="dropZone" onclick="document.getElementById('fileInput').click()">
+                <div id="hintText">
+                    <div style="font-size: 48px; margin-bottom: 10px;">📸</div>
+                    <strong>点击或拖拽上传图片</strong>
+                </div>
+                <input type="file" id="fileInput" accept="image/*" style="display:none">
+                <img id="preview">
+            </div>
+            
+            <div id="loader" class="loader-line"></div>
+            
+            <div id="re-upload" style="display:none; margin-top: 20px;">
+                <button onclick="location.reload()" style="background:#f0f0f0; border:none; padding:10px 20px; border-radius:10px; cursor:pointer; color:#666;">← 重新识别</button>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <h2 style="color: #2d5a27; margin: 0 0 20px 0; border-bottom: 2px solid #f1f8e9; padding-bottom: 10px;">识别分析结果</h2>
+            <div id="results-list"></div>
+            <p style="font-size: 12px; color: #999; margin-top: 20px;">💡 小提示：点击上方种类可直接查看百科资料</p>
+        </div>
+    </div>
+
+    <div id="wikiModal">
+        <div class="modal-content">
+            <button class="close-btn" onclick="closeWiki()">✕</button>
+            <iframe id="wikiFrame" src="" style="width:100%; height:100%; border:none;"></iframe>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const preview = document.getElementById('preview');
+        const container = document.getElementById('mainContainer');
+        const resultsList = document.getElementById('results-list');
+        const loader = document.getElementById('loader');
+        const hintText = document.getElementById('hintText');
+        const reUpload = document.getElementById('re-upload');
+
+        fileInput.onchange = e => {
+            const file = e.target.files[0];
+            if (file) {
+                preview.src = URL.createObjectURL(file);
+                preview.style.display = 'block';
+                hintText.style.display = 'none';
+                uploadImage(file);
+            }
+        };
+
+        async function uploadImage(file) {
+            loader.style.display = 'block';
+            resultsList.innerHTML = '';
+            
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/predict', { method: 'POST', body: formData });
+                const data = await response.json();
+                
+                loader.style.display = 'none';
+                
+                if (data.success) {
+                    // 触发布局转换动画
+                    container.classList.add('is-analyzed');
+                    reUpload.style.display = 'block';
+                    
+                    data.predictions.forEach((item, index) => {
+                        const div = document.createElement('div');
+                        div.className = `result-item ${index === 0 ? 'rank-1' : ''}`;
+                        div.style.animationDelay = `${index * 0.15 + 0.6}s`; // 确保容器变宽后再弹出结果
+                        
+                        div.innerHTML = `
+                            <div style="text-align:left;">
+                                <div style="font-size: 13px; color: #999;">Top ${item.rank}</div>
+                                <div style="font-size: 17px; font-weight: bold; color:#333;">${item.name}</div>
+                            </div>
+                            <span class="confidence-tag">${item.confidence}</span>
+                        `;
+
+                        // 点击打开百科
+                        div.onclick = () => openWiki(item.name);
+                        
+                        resultsList.appendChild(div);
+                    });
+                }
+            } catch (err) {
+                loader.style.display = 'none';
+                alert("无法连接到识别服务器，请确认后端已启动。");
+            }
+        }
+
+        function openWiki(name) {
+            const query = encodeURIComponent(name);
+            // 使用移动版维基百科预览效果更好
+            document.getElementById('wikiFrame').src = `https://zh.m.wikipedia.org/wiki/${query}`;
+            document.getElementById('wikiModal').style.display = 'flex';
+        }
+
+        function closeWiki() {
+            document.getElementById('wikiModal').style.display = 'none';
+            document.getElementById('wikiFrame').src = '';
+        }
+    </script>
+</body>
+</html>
